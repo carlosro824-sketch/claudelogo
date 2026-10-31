@@ -134,8 +134,12 @@ def main():
             sys.exit(f'Categoría desconocida: {c}. Usa --lista.')
         fotos = cat[c]['fotos']
         pref = [f for f in fotos if f['o'] == a.formato or a.formato == 'c']
-        pool = [f for f in (pref or fotos) if f['id'] not in usadas] or [f for f in fotos if f['id'] not in usadas] or fotos
-        for f in rnd.sample(pool, min(a.n, len(pool))):
+        nuevas = [f for f in fotos if f['id'] not in usadas]
+        p1 = [f for f in nuevas if f in pref]; p2 = [f for f in nuevas if f not in pref]
+        rnd.shuffle(p1); rnd.shuffle(p2)
+        pool = (p1 + p2) or fotos[:]           # primero las de la orientación pedida, luego el resto
+        if not (p1 + p2): rnd.shuffle(pool)
+        for f in pool[:a.n]:
             pedidos.append((f['id'], f'{c}-{f["id"]}', {'categoria': c}))
 
     if not pedidos:

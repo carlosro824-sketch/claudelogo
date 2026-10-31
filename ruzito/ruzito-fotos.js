@@ -21,6 +21,14 @@ function FOTOS(V) {
   let uid = 0; const id = p => `rf${p}${uid++}`;
   const clip = (shapes) => { const i = id('c'); const cp = el('clipPath', { id: i, clipPathUnits: 'userSpaceOnUse' }, defs); shapes(cp); return i; };
 
+  // transformaciones aplicadas cuadro a cuadro (GSAP compensa el origen en SVG y desplaza los grupos)
+  function tf(g, base = '') {
+    if (g._tf) return g._tf;
+    const st = g._tf = { x: 0, y: 0, s: 1, r: 0, sk: 0 };
+    V.onFrame(() => g.setAttribute('transform', `${base} translate(${st.x.toFixed(2)} ${st.y.toFixed(2)}) rotate(${st.r.toFixed(3)}) skewX(${st.sk.toFixed(3)}) scale(${Math.max(st.s, 0.0001).toFixed(4)})`));
+    return st;
+  }
+
   // sombras y filtros de marca (una sola vez)
   if (!document.getElementById('rfSombra')) defs.insertAdjacentHTML('beforeend', `
     <filter id="rfSombra" x="-20%" y="-20%" width="140%" height="150%"><feGaussianBlur in="SourceAlpha" stdDeviation="18"/><feOffset dy="22"/><feComponentTransfer><feFuncA type="linear" slope=".35"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -91,7 +99,7 @@ function FOTOS(V) {
         restaura(at + 0.95); popMarco(f, at, 0.25); sfx('sparkle', at + 0.2, { gain: 0.5 }); break;
       }
       case 'polaroid': {   // cae girando, rebota, se pega con cinta y se "revela"
-        tl.fromTo(f.g, { y: -Hh * 0.8, rotation: -18 }, { y: 0, rotation: o.rot ?? -3, duration: S(0.7), ease: 'bounce.out', immediateRender: false }, S(at));
+        tl.fromTo(tf(f.g), { y: -Hh * 0.8, r: -18 }, { y: 0, r: o.rot ?? -3, duration: S(0.7), ease: 'bounce.out', immediateRender: false }, S(at));
         revelar(f, at + 0.4, 1.2);
         const cinta = el('g', { opacity: 0 }, f.sobre);
         cinta.innerHTML = `<rect x="${w / 2 - 80}" y="${-f.pad - 26}" width="160" height="52" rx="4" fill="${C.turq}" opacity=".75" transform="rotate(-4 ${w / 2} 0)"/>`;
@@ -124,11 +132,12 @@ function FOTOS(V) {
       }
       case 'desliza': {    // entra deslizando desde un lado con inclinación y asienta
         const lado = o.lado === 'izq' ? -1 : 1;
-        tl.fromTo(f.g, { x: lado * (W + 200), skewX: -lado * 12 }, { x: 0, skewX: 0, duration: S(d), ease: 'expo.out', immediateRender: false }, S(at));
+        tl.fromTo(tf(f.g), { x: lado * (W + 200), sk: -lado * 12 }, { x: 0, sk: 0, duration: S(d), ease: 'expo.out', immediateRender: false }, S(at));
         sfx('whoosh', at, { gain: 0.6 }); break;
       }
       case 'zoom': default: {   // golpe de zoom con destello blanco
-        tl.fromTo(f.g, { scale: 1.35, opacity: 0 }, { scale: 1, opacity: 1, duration: S(0.5), ease: 'expo.out', immediateRender: false }, S(at));
+        tl.fromTo(tf(f.g), { s: 1.35 }, { s: 1, duration: S(0.5), ease: 'expo.out', immediateRender: false }, S(at));
+        tl.fromTo(f.g, { opacity: 0 }, { opacity: 1, duration: S(0.3), immediateRender: false }, S(at));
         const fl = el('rect', { width: w, height: h, fill: '#fff', opacity: 0 }, f.fx);
         tl.fromTo(fl, { opacity: 0.8 }, { opacity: 0, duration: S(0.45), immediateRender: false }, S(at + 0.05));
         sfx('kick', at, { gain: 0.7 }); sfx('whoosh_in', at - 0.2, { gain: 0.4 }); break;
@@ -137,7 +146,7 @@ function FOTOS(V) {
     if (o.kb !== false) kenburns(f, at, o.kbDur ?? 7, o.kbOpts);
     return f;
   }
-  function popMarco(f, at, d = 0.3) { tl.fromTo(f.g, { scale: 0.92 }, { scale: 1, duration: S(d + 0.2), ease: 'back.out(2)', transformOrigin: '50% 50%', immediateRender: false }, S(at)); }
+  function popMarco(f, at, d = 0.3) { tl.fromTo(tf(f.g), { s: 0.92 }, { s: 1, duration: S(d + 0.2), ease: 'back.out(2)', immediateRender: false }, S(at)); }
   function revelar(f, at, dur) {   // de gris y borroso a color y nítido
     const fid = id('rv');
     defs.insertAdjacentHTML('beforeend', `<filter id="${fid}"><feGaussianBlur stdDeviation="0"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope="1"/><feFuncG type="linear" slope="1"/><feFuncB type="linear" slope="1"/></feComponentTransfer></filter>`);
@@ -163,48 +172,49 @@ function FOTOS(V) {
   }
   function sale(f, at, tipo = 'encoge') {
     const d = 0.45;
-    if (tipo === 'cae') tl.to(f.g, { y: Hh, rotation: 14, duration: S(d), ease: 'power2.in' }, S(at));
-    else if (tipo === 'desliza') tl.to(f.g, { x: -W - 200, skewX: 10, duration: S(d), ease: 'power3.in' }, S(at));
+    if (tipo === 'cae') tl.to(tf(f.g), { y: Hh, r: 14, duration: S(d), ease: 'power2.in' }, S(at));
+    else if (tipo === 'desliza') tl.to(tf(f.g), { x: -W - 200, sk: 10, duration: S(d), ease: 'power3.in' }, S(at));
     else if (tipo === 'funde') tl.to(f.g, { opacity: 0, duration: S(d) }, S(at));
-    else tl.to(f.g, { scale: 0, rotation: -8, duration: S(d), ease: 'back.in(2)', transformOrigin: '50% 50%' }, S(at));
+    else tl.to(tf(f.g), { s: 0, r: -8, duration: S(d), ease: 'back.in(2)' }, S(at));
     tl.set(f.g, { opacity: 0 }, S(at + d));
     sfx('whoosh', at, { gain: 0.4 });
   }
 
   /* ---------- acentos sobre la foto ---------- */
   function etiqueta(f, at, texto, { lado = 'abajo', color = C.techo, size = 54 } = {}) {
-    const { w, h } = f, g = el('g', { opacity: 0 }, f.sobre);
+    const { w, h } = f, wrap = el('g', {}, f.sobre), g = el('g', { opacity: 0 }, wrap);
     const t = el('text', { x: 0, y: 0, 'font-size': size, 'font-family': 'Inter, Arial, sans-serif', 'font-weight': 800, fill: '#fff', 'text-anchor': 'middle' }, g);
     t.textContent = texto; const b = t.getBBox(), pw = b.width + 70, ph = size * 1.7;
     const bx = w / 2, by = lado === 'arriba' ? -f.pad + 10 : h + f.pad - 10;
     const pill = el('rect', { x: -pw / 2, y: -ph / 2, width: pw, height: ph, rx: ph / 2, fill: color, stroke: '#fff', 'stroke-width': 6 }, g);
     g.insertBefore(pill, t); t.setAttribute('y', size * 0.36);
     el('circle', { cx: -pw / 2 + 2, cy: 0, r: 13, fill: C.turq, stroke: '#fff', 'stroke-width': 5 }, g);
-    g.setAttribute('transform', `translate(${bx},${by})`);
+    wrap.setAttribute('transform', `translate(${bx},${by})`);
     tl.set(g, { opacity: 1 }, S(at));
-    tl.fromTo(g, { scale: 0, rotation: -6 }, { scale: 1, rotation: 0, duration: S(0.45), ease: 'back.out(2.5)', transformOrigin: '50% 50%', immediateRender: false }, S(at));
+    tl.fromTo(tf(g), { s: 0, r: -6 }, { s: 1, r: 0, duration: S(0.45), ease: 'back.out(2.5)', immediateRender: false }, S(at));
     sfx('pop', at, { gain: 0.6 });
     return g;
   }
   function precio(f, at, texto, o = {}) {   // sello de precio en la esquina superior derecha
-    const g = el('g', { opacity: 0, transform: `translate(${f.w - 120},120) rotate(8)` }, f.sobre);
+    const wrap = el('g', { transform: `translate(${f.w - 120},120) rotate(8)` }, f.sobre), g = el('g', { opacity: 0 }, wrap);
     g.innerHTML = `<circle r="120" fill="${C.turq}" stroke="#fff" stroke-width="10"/><circle r="100" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="8 8"/>
       <text y="-28" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="700" font-size="32" fill="#fff">${o.arriba ?? 'DESDE'}</text>
       <text y="30" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="900" font-size="${texto.length > 7 ? 44 : 56}" fill="#fff">${texto}</text>`;
     tl.set(g, { opacity: 1 }, S(at));
-    tl.fromTo(g, { scale: 2.6, opacity: 0 }, { scale: 1, opacity: 1, duration: S(0.3), ease: 'power4.in', transformOrigin: '50% 50%', immediateRender: false }, S(at));
-    tl.to(f.g, { x: 8, duration: S(0.04), yoyo: true, repeat: 3 }, S(at + 0.3));
+    tl.fromTo(tf(g), { s: 2.6 }, { s: 1, duration: S(0.3), ease: 'power4.in', immediateRender: false }, S(at));
+    tl.fromTo(g, { opacity: 0 }, { opacity: 1, duration: S(0.3), immediateRender: false }, S(at));
+    tl.to(tf(f.g), { x: 8, duration: S(0.04), yoyo: true, repeat: 3 }, S(at + 0.3));
     sfx('stamp', at + 0.28, { gain: 0.8 });
     return g;
   }
   function pin(f, at, fx, fy, texto = null) {   // pin de ubicación que cae y rebota (fx, fy en fracción de la foto)
-    const g = el('g', { opacity: 0, transform: `translate(${fx * f.w},${fy * f.h})` }, f.sobre);
+    const wrap = el('g', { transform: `translate(${fx * f.w},${fy * f.h})` }, f.sobre), g = el('g', { opacity: 0 }, wrap);
     g.innerHTML = `<ellipse cy="4" rx="22" ry="8" fill="#000" opacity=".25"/>
       <path d="M0,0 C-8,-20 -40,-44 -40,-76 A40,40 0 1,1 40,-76 C40,-44 8,-20 0,0 Z" fill="${C.techo}" stroke="#fff" stroke-width="6"/>
       <circle cy="-76" r="15" fill="#fff"/>` + (texto ? `<g transform="translate(0,-150)"><rect x="${-texto.length * 15 - 24}" y="-34" width="${texto.length * 30 + 48}" height="60" rx="30" fill="#fff"/>
       <text y="9" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="34" fill="${C.tinta}">${texto}</text></g>` : '');
     tl.set(g, { opacity: 1 }, S(at));
-    tl.fromTo(g, { y: -300 }, { y: 0, duration: S(0.6), ease: 'bounce.out', immediateRender: false }, S(at));
+    tl.fromTo(tf(g), { y: -300 }, { y: 0, duration: S(0.6), ease: 'bounce.out', immediateRender: false }, S(at));
     sfx('thud', at + 0.35, { gain: 0.5 });
     return g;
   }
@@ -256,10 +266,12 @@ function FOTOS(V) {
   function particulas(parent, at, dur = 3, { n = 26, color = C.turq } = {}) {   // destellos flotantes (sparkles de marca)
     for (let i = 0; i < n; i++) {
       const hs = k => { const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
-      const s = el('path', { d: 'M0,-12 L3,-3 L12,0 L3,3 L0,12 L-3,3 L-12,0 L-3,-3 Z', fill: i % 3 ? color : '#fff', opacity: 0, transform: `translate(${hs(1) * W},${hs(2) * Hh})` }, parent);
+      const s = el('path', { d: 'M0,-12 L3,-3 L12,0 L3,3 L0,12 L-3,3 L-12,0 L-3,-3 Z', fill: i % 3 ? color : '#fff', opacity: 0 }, parent);
+      const st = tf(s, `translate(${(hs(1) * W).toFixed(1)} ${(hs(2) * Hh).toFixed(1)})`); st.s = 0;
       const t0 = at + hs(3) * dur * 0.7;
-      tl.fromTo(s, { opacity: 0, scale: 0 }, { opacity: 0.9, scale: 0.6 + hs(4), duration: S(0.35), ease: 'back.out(3)', yoyo: true, repeat: 1, repeatDelay: S(0.4), transformOrigin: '50% 50%', immediateRender: false }, S(t0));
-      tl.to(s, { y: '-=60', duration: S(1.2), ease: 'none' }, S(t0));
+      tl.fromTo(s, { opacity: 0 }, { opacity: 0.9, duration: S(0.35), yoyo: true, repeat: 1, repeatDelay: S(0.4), immediateRender: false }, S(t0));
+      tl.fromTo(st, { s: 0 }, { s: 0.6 + hs(4), duration: S(0.35), ease: 'back.out(3)', yoyo: true, repeat: 1, repeatDelay: S(0.4), immediateRender: false }, S(t0));
+      tl.to(st, { y: -60, duration: S(1.2), ease: 'none' }, S(t0));
     }
   }
   function destello(at) { const r = el('rect', { width: W, height: Hh, fill: '#fff', opacity: 0 }, V.screen); tl.fromTo(r, { opacity: 0.85 }, { opacity: 0, duration: S(0.4), immediateRender: false }, S(at)); }
